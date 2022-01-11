@@ -1,59 +1,88 @@
 import './css/styles.css';
-import debounce from 'lodash.debounce';
 import { Notify } from 'notiflix/build/notiflix-notify-aio';
-import { fetchCountries } from './fatchConunrty';
+import debounce from 'lodash.debounce';
+
+const refs = {
+  searchBox: document.getElementById('search-box'),
+  countryList: document.querySelector('.country-list'),
+  countryInfo: document.querySelector('.country-info'),
+};
 
 const DEBOUNCE_DELAY = 300;
 
-const searchboxInput = document.querySelector('[id="search-box"]');
-const infoContainer = document.querySelector('.country-info');
-const listContainer = document.querySelector('.country-list');
+refs.searchBox.addEventListener('input', debounce(inputCountry, DEBOUNCE_DELAY));
 
-function showCountry() {
-  fetchCountries(searchboxInput.value.trim())
-    .then(country => {
-      infoContainer.innerHTML = '';
-      listContainer.innerHTML = '';
+function inputCountry() {
+  const countryName = refs.searchBox.value;
+  if (countryName === '') {
+    refs.countryInfo.innerHTML = '';
+    refs.countryList.innerHTML = '';
+    return;
+  }
 
-      if (country.length > 10) {
+  fetchCountries(countryName)
+    .then(countrys => {
+      if (countrys.length >= 10) {
         Notify.info('Too many matches found. Please enter a more specific name.');
-      } else if (country.length >= 2 && country.length <= 10) {
-        listCountry(country);
-      } else if (country.length === 1) {
-        infoCountry(country);
+        refs.countryInfo.innerHTML = '';
+        refs.countryList.innerHTML = '';
+        return;
+      }
+
+      if (countrys.length <= 10) {
+        const listMarkup = countrys.map(country => countryList(country));
+        refs.countryList.innerHTML = listMarkup.join('');
+        refs.countryInfo.innerHTML = '';
+      }
+
+      if (countrys.length === 1) {
+        const markup = countrys.map(country => countryСard(country));
+        refs.countryInfo.innerHTML = markup.join('');
+        refs.countryList.innerHTML = '';
       }
     })
-    .catch(showError);
+    .catch(error => {
+      Notify.failure('Oops, there is no country with that name');
+      refs.countryInfo.innerHTML = '';
+      refs.countryList.innerHTML = '';
+      return error;
+    });
 }
 
-function listCountry(country) {
-  const markup = country
-    .map(({ flags, name }) => {
-      return `<li class="country-list"> 
-      <img class="flag-list" src ="${flags.svg}" alt="Flag of ${name.common}"  width="50"/>
-      <span class = "name-list">${name.common}</span></li>`;
-    })
-    .join('');
-  listContainer.innerHTML = markup;
+fetch('https://restcountries.com/v3.1/name/`${name}`')
+  .then(r => r.json())
+  .then(console.log(message));
+
+function countryСard({ flags, name, capital, population, languages }) {
+  return `
+    <div class="country-info__container">
+      <div class="country-info__wrapper">
+        <img class="country-info__flags" src="${flags.svg}" alt="${name.official}" width="50" />
+        <h2 class="country-info__name">${name.official}</h2>
+      </div>
+      <p class="country-info__capital"><span class="country-info__weight">Capital:</span> ${capital}</p>
+      <p class="country-info__population"><span class="country-info__weight">Population:</span> ${population}</p>
+      <p class="country-info__languages"><span class="country-info__weight">Languages:</span> ${Object.values(
+        languages,
+      )}</p>
+    </div>`;
 }
 
-function infoCountry([{ name, flags, capital, population, languages }]) {
-  infoContainer.innerHTML = `<img src ="${flags.svg}" class="flags"  alt="Flag of ${
-    name.official
-  }" width="50"/>
-         <span class="country-name">${name.official}</span>
-       <p class = "info"> Capital: <span class = "info-span">${capital}</span></p>
-       <p class = "info"> Population: <span class = "info-span">${population}</span></p>
-       <p class = "info"> Languages: <span class = "info-span">${Object.values(languages).join(
-         ', ',
-       )}
-        </span></p>`;
+function countryList({ flags, name }) {
+  return `<li class="country-list__item">
+    <img class="country-list__flags" src="${flags.svg}" alt="${name.official}" width="50" />
+    <h2 class="country-list__name">${name.official}</h2>
+  </li>`;
 }
 
-function showError(error) {
-  Notify.failure('Oops, there is no country with that name');
-  infoContainer.innerHTML = '';
-  listContainer.innerHTML = '';
-}
+function fetchCountries(name) {
+  const url = 'https://restcountries.com/v3.1/name/';
+  const filter = '?fields=name,capital,population,flags,languages';
+  return fetch(`${url}${name}${filter}`).then(response => {
+    if (!response.ok) {
+      throw new Error(response.status);
+    }
 
-searchboxInput.addEventListener('input', debounce(showCountry, DEBOUNCE_DELAY));
+    return response.json();
+  });
+}
